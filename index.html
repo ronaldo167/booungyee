@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cellular Nightmare: 세포 탈출 (Cell Escape)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #05070a;
+            font-family: 'Noto Sans KR', sans-serif;
+            color: #e2e8f0;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* CRT Scanline FX */
+        .scanline {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+            z-index: 20;
+        }
+        /* Visual Glitch FX */
+        .glitch-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 0, 50, 0.15);
+            display: none;
+            pointer-events: none;
+            z-index: 25;
+            animation: glitch-anim 0.15s infinite;
+        }
+        @keyframes glitch-anim {
+            0% { transform: translate(0,0) scale(1); filter: hue-rotate(0deg); }
+            20% { transform: translate(-4px, 3px) scale(1.01); filter: hue-rotate(90deg); }
+            40% { transform: translate(3px, -2px) scale(0.99); filter: hue-rotate(180deg); }
+            60% { transform: translate(-3px, -3px) scale(1.02); filter: hue-rotate(270deg); }
+            80% { transform: translate(4px, 2px) scale(1); filter: hue-rotate(360deg); }
+            100% { transform: translate(0,0) scale(1); }
+        }
+        /* Glow FX */
+        .glow-green { box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); }
+        .glow-red { box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); }
+        .glow-cyan { box-shadow: 0 0 15px rgba(6, 182, 212, 0.5); }
+        .glow-purple { box-shadow: 0 0 15px rgba(168, 85, 247, 0.5); }
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.8); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="relative flex flex-col items-center justify-center bg-slate-950 text-slate-100 overflow-hidden">
+
+    <!-- Scanline overlay -->
+    <div class="scanline"></div>
+    <div id="glitchOverlay" class="glitch-overlay"></div>
+
+    <!-- Jumpscare Fullscreen Overlay -->
+    <div id="jumpscareOverlay" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-50 hidden cursor-pointer">
+        <div class="relative w-72 h-72 rounded-full border-4 border-red-600 animate-ping flex items-center justify-center bg-red-950/40">
+            <i class="fa-solid fa-virus-covid text-8xl text-red-600 animate-bounce"></i>
+        </div>
+        <h1 class="text-4xl font-extrabold text-red-600 font-orbitron mt-6 tracking-widest animate-pulse">변성 단백질 습격!</h1>
+        <p class="text-slate-300 mt-2 text-center max-w-md">세포 독성이 급증하여 침식되었습니다. 체력이 감소합니다!</p>
+    </div>
+
+    <!-- Main Canvas Frame Container -->
+    <div class="relative w-full h-full max-w-7xl max-h-[900px] flex flex-col justify-between p-2 md:p-4">
+        
+        <!-- TOP HUD BAR -->
+        <header class="w-full bg-slate-900/90 backdrop-blur border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 z-10 shadow-2xl">
+            <!-- Title & Status -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-emerald-950 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
+                    <i class="fa-solid fa-dna text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-orbitron font-bold text-sm md:text-base text-emerald-400 tracking-wider">CELLULAR NIGHTMARE</h1>
+                    <p class="text-xs text-slate-400">목표: 7개 세포소기관 미션 완수 후 세포막 탈출</p>
+                </div>
+            </div>
+
+            <!-- Gauges (HP & ATP Flashlight) -->
+            <div class="flex items-center gap-4 flex-grow max-w-md">
+                <!-- HP Bar -->
+                <div class="flex-1">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-red-400 font-semibold"><i class="fa-solid fa-heart-pulse mr-1"></i>세포 생체막 (HP)</span>
+                        <span id="hpText" class="font-orbitron text-red-300">100%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700">
+                        <div id="hpBar" class="bg-gradient-to-r from-red-600 to-rose-400 h-full w-full transition-all duration-300"></div>
+                    </div>
+                </div>
+
+                <!-- Flashlight ATP Bar -->
+                <div class="flex-1">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-cyan-400 font-semibold"><i class="fa-solid fa-bolt mr-1"></i>에너지 (ATP)</span>
+                        <span id="atpText" class="font-orbitron text-cyan-300">100%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700">
+                        <div id="atpBar" class="bg-gradient-to-r from-cyan-600 to-blue-400 h-full w-full transition-all duration-300"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons Header -->
+            <div class="flex items-center gap-2">
+                <button id="btnNotebook" title="생명과학 도감 [N]" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-cyan-300 transition">
+                    <i class="fa-solid fa-book-open"></i> <span class="hidden sm:inline">도감 [N]</span>
+                </button>
+                <button id="btnSound" title="사운드 토글" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-xs font-semibold text-amber-300 transition">
+                    <i id="soundIcon" class="fa-solid fa-volume-high"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- GAME CANVAS & UI CONTAINERS -->
+        <div class="relative flex-1 my-2 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 flex items-center justify-center shadow-inner">
+            <canvas id="gameCanvas" class="w-full h-full block bg-black cursor-crosshair"></canvas>
+
+            <!-- On-Screen Controls Overlay for Touch / Interaction Hints -->
+            <div id="interactionHint" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900/90 border border-emerald-500/50 text-emerald-300 px-4 py-2 rounded-full text-xs md:text-sm font-semibold shadow-lg hidden animate-pulse flex items-center gap-2">
+                <i class="fa-solid fa-hand-pointer text-emerald-400"></i>
+                <span id="hintText">[E] 상호작용 - 소기관 복구</span>
+            </div>
+
+            <!-- Stealth Hiding Indicator -->
+            <div id="hidingIndicator" class="absolute top-6 left-6 bg-slate-900/90 border border-indigo-500/60 text-indigo-300 px-3 py-1.5 rounded-lg text-xs font-semibold hidden flex items-center gap-2">
+                <i class="fa-solid fa-eye-slash text-indigo-400 animate-pulse"></i>
+                <span>소포 내부에 은폐 중 (괴물이 감지하지 못함)</span>
+            </div>
+
+            <!-- Minimap Container Overlay -->
+            <div class="absolute bottom-4 right-4 w-32 h-32 md:w-40 md:h-40 bg-slate-900/80 border border-slate-700 rounded-xl overflow-hidden p-1 pointer-events-none hidden md:block">
+                <div class="text-[10px] text-slate-400 mb-1 px-1 font-orbitron">CELL MAP</div>
+                <canvas id="minimapCanvas" class="w-full h-[calc(100%-16px)] bg-slate-950 rounded"></canvas>
+            </div>
+        </div>
+
+        <!-- BOTTOM CONTROLS & OBJECTIVES BAR -->
+        <footer class="w-full bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs z-10">
+            <!-- Mobile Virtual D-Pad & Controls -->
+            <div class="flex items-center gap-2">
+                <span class="text-slate-400 hidden lg:inline">조작: <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">WASD</kbd> 이동 | <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">E</kbd> 퍼즐/은폐 | <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">F</kbd> 손전등 | <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">N</kbd> 도감</span>
+                <button id="btnMobileInteract" class="px-3 py-2 bg-emerald-600/80 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-lg lg:hidden">
+                    [E] 상호작용 / 은폐
+                </button>
+                <button id="btnMobileFlashlight" class="px-3 py-2 bg-cyan-600/80 hover:bg-cyan-500 active:bg-cyan-700 text-white font-bold rounded-lg lg:hidden">
+                    [F] 손전등
+                </button>
+            </div>
+
+            <!-- Organelle Mission Tracker Badges -->
+            <div class="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full" id="organelleTracker">
+                <!-- Badges injected dynamically -->
+            </div>
+        </footer>
+    </div>
+
+    <!-- START / TITLE MODAL -->
+    <div id="titleModal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-40 flex items-center justify-center p-4">
+        <div class="max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <span class="p-3 bg-emerald-950 border border-emerald-500/40 rounded-xl text-emerald-400 text-2xl">
+                    <i class="fa-solid fa-spaghetti-monster-flying"></i>
+                </span>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-extrabold font-orbitron text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
+                        CELLULAR NIGHTMARE
+                    </h1>
+                    <p class="text-sm text-slate-400">고등 생명과학 I 세포소기관 호러 탐험 퍼즐</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-xs md:text-sm text-slate-300 leading-relaxed my-6 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                <p><i class="fa-solid fa-triangle-exclamation text-amber-400 mr-2"></i><strong>상황 개요:</strong> 변성 단백질 괴물과 활성 산소(ROS)로 오염된 어두운 진핵세포 속에서 깨어났습니다.</p>
+                <p><i class="fa-solid fa-bullseye text-emerald-400 mr-2"></i><strong>목표:</strong> 7개 주요 세포소기관을 탐험하고, 생명과학 원리에 기반한 퍼즐을 풀어 세포 기능을 복구한 뒤 세포막 선택적 투과 통로를 열어 탈출하세요!</p>
+                <div class="grid grid-cols-2 gap-2 text-xs pt-2">
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">
+                        <span class="text-emerald-400 font-bold block mb-1">주요 세포소기관:</span>
+                        핵, 마이토콘드리아, 라이보솜, 소포체, 골지체, 라이소솜, 세포막
+                    </div>
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">
+                        <span class="text-rose-400 font-bold block mb-1">위험 요소:</span>
+                        활성산소(ROS) 추격, 변성 단백질 점프 스케어, 손전등 에너지 고갈
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="text-xs text-slate-400">
+                    <i class="fa-solid fa-keyboard mr-1"></i> WASD 이동 | E 퍼즐/은폐 | F 손전등 | N 도감
+                </div>
+                <button id="btnStartGame" class="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-bold text-white rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0">
+                    세포 탐험 시작 <i class="fa-solid fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BIOLOGY NOTEBOOK / REFERENCE MODAL -->
+    <div id="notebookModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="max-w-3xl w-full max-h-[85vh] bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+                <h2 class="text-lg md:text-xl font-bold text-emerald-400 flex items-center gap-2">
+                    <i class="fa-solid fa-book-bookmark"></i> 고등 생명과학 세포소기관 탐구 도감
+                </h2>
+                <button id="btnCloseNotebook" class="text-slate-400 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div id="notebookContent" class="flex-1 overflow-y-auto space-y-4 pr-2 text-xs md:text-sm text-slate-300">
+                <!-- Injected dynamically with textbook references -->
+            </div>
+        </div>
+    </div>
+
+    <!-- PUZZLE INTERACTION MODAL -->
+    <div id="puzzleModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-40 hidden flex items-center justify-center p-4">
+        <div class="max-w-2xl w-full bg-slate-900 border border-emerald-500/40 rounded-2xl p-6 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
+            <!-- Puzzle Header -->
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                <div class="flex items-center gap-3">
+                    <span id="puzzleIcon" class="p-2.5 bg-emerald-950 border border-emerald-500/50 rounded-lg text-emerald-400 text-xl">
+                        <i class="fa-solid fa-microscope"></i>
+                    </span>
+                    <div>
+                        <h3 id="puzzleTitle" class="text-lg font-bold text-emerald-400">세포소기관 퍼즐</h3>
+                        <p id="puzzleSubtitle" class="text-xs text-slate-400">기능 복구 미션 진행 중</p>
+                    </div>
+                </div>
+                <button id="btnClosePuzzle" class="text-slate-400 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Puzzle Educational Context -->
+            <div id="puzzleConceptBox" class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs text-slate-300 mb-4 leading-relaxed">
+                <!-- Concept description injected -->
+            </div>
+
+            <!-- Dynamic Puzzle Workspace Area -->
+            <div id="puzzleWorkspace" class="my-2 min-h-[200px] flex flex-col items-center justify-center bg-slate-950/80 border border-slate-800 rounded-xl p-4">
+                <!-- Dynamic Puzzle Controls Rendered Here -->
+            </div>
+
+            <!-- Puzzle Feedback & Validation -->
+            <div id="puzzleFeedback" class="hidden my-2 p-3 rounded-lg text-xs font-semibold text-center"></div>
+
+            <!-- Puzzle Submit / Action Buttons -->
+            <div class="flex justify-end gap-3 mt-4 pt-3 border-t border-slate-800">
+                <button id="btnCancelPuzzle" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition">
+                    포기하고 돌아가기
+                </button>
+                <button id="btnVerifyPuzzle" class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow transition">
+                    답안 제출 및 복구
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME OVER MODAL -->
+    <div id="gameOverModal" class="fixed inset-0 bg-red-950/90 backdrop-blur-md z-40 hidden flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-slate-900 border border-red-600/60 rounded-2xl p-6 text-center shadow-2xl">
+            <div class="w-16 h-16 mx-auto mb-4 bg-red-950 border border-red-500 rounded-full flex items-center justify-center text-red-500 text-3xl">
+                <i class="fa-solid fa-skull"></i>
+            </div>
+            <h2 class="text-2xl font-bold font-orbitron text-red-500 mb-2">세포 사멸 (APOPTOSIS)</h2>
+            <p class="text-xs text-slate-300 mb-6 leading-relaxed">
+                변성 단백질 독성 또는 에너지 고갈로 인해 세포 기능이 마비되었습니다.<br>
+                생명과학 도감을 참고하여 다시 도전하세요!
+            </p>
+            <button id="btnRestartGame" class="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg transition">
+                <i class="fa-solid fa-rotate-right mr-2"></i> 세포 재탐험 도전
+            </button>
+        </div>
+    </div>
+
+    <!-- VICTORY ENDING MODAL -->
+    <div id="victoryModal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-40 hidden flex items-center justify-center p-4">
+        <div class="max-w-2xl w-full bg-slate-900 border border-emerald-500 rounded-2xl p-6 md:p-8 shadow-2xl text-center">
+            <div class="w-20 h-20 mx-auto mb-4 bg-emerald-950 border-2 border-emerald-400 rounded-full flex items-center justify-center text-emerald-400 text-4xl animate-bounce">
+                <i class="fa-solid fa-door-open"></i>
+            </div>
+            <h2 class="text-2xl md:text-3xl font-extrabold font-orbitron text-emerald-400 mb-2">
+                세포막 탈출 성공! (CELL ESCAPE CLEAR)
+            </h2>
+            <p class="text-xs md:text-sm text-slate-300 mb-6 leading-relaxed">
+                축하합니다! 7개 세포소기관의 정상적인 생화학적 기능을 복구하고, 선택적 투과성을 활용해 무사히 세포 외부로 탈출했습니다.
+            </p>
+
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-left mb-6 space-y-2 text-xs text-slate-300">
+                <h4 class="font-bold text-emerald-400 text-sm mb-2"><i class="fa-solid fa-graduation-cap mr-1"></i> 학습 완료한 고등 생명과학 개념 Summary:</h4>
+                <p>• <strong>핵:</strong> DNA 전사를 통한 mRNA 교서 합성</p>
+                <p>• <strong>마이토콘드리아:</strong> 세포 호흡 반응 및 ATP 에너지 합성</p>
+                <p>• <strong>라이보솜:</strong> mRNA 코돈 번역을 통한 단백질 합성</p>
+                <p>• <strong>소포체:</strong> 단백질 수송(거친소포체) 및 지질 합성/해독(매끄러운소포체)</p>
+                <p>• <strong>골지체:</strong> 단백질가공 및 표적 분비 소포 포장</p>
+                <p>• <strong>라이소솜:</strong> 산성 환경(pH 5) 유지 및 가수분해 효소를 통한 이물질 분해</p>
+                <p>• <strong>세포막:</strong> 인지질 이중층, 수용체-리간드 결합, 막단백질 통로를 통한 물질 이동</p>
+            </div>
+
+            <button id="btnPlayAgain" class="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition">
+                <i class="fa-solid fa-arrow-rotate-left mr-2"></i> 처음부터 다시 플레이하기
+            </button>
+        </div>
+    </div>
+
+    <!-- GAME ENGINE & PUZZLE SCRIPT -->
+    <script>
+        /* ==========================================================================
+           1. AUDIO SYNTHESIZER ENGINE (Web Audio API - No external files required)
+           ========================================================================== */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+            playTone(freq, type, duration, vol = 0.1) {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e){}
+            }
+            playClick() { this.playTone(600, 'sine', 0.05, 0.05); }
+            playSuccess() {
+                if (!this.enabled || !this.ctx) return;
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    setTimeout(() => this.playTone(freq, 'triangle', 0.15, 0.08), idx * 80);
+                });
+            }
+            playError() {
+                this.playTone(180, 'sawtooth', 0.2, 0.1);
+            }
+            playJumpscare() {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(800, this.ctx.currentTime + 0.3);
+                    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.5);
+                } catch(e){}
+            }
+            playHeartbeat() {
+                if (!this.enabled || !this.ctx) return;
+                this.playTone(60, 'sine', 0.12, 0.2);
+                setTimeout(() => this.playTone(50, 'sine', 0.1, 0.15), 150);
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        /* ==========================================================================
+           2. GAME DATA & BIOLOGY CURRICULUM DEFINITIONS
+           ========================================================================== */
+        const ORGANELLES_DATA = {
+            mitochondria: {
+                id: 'mitochondria',
+                name: '마이토콘드리아',
+                color: '#ef4444',
+                icon: 'fa-bolt',
+                unlocked: false,
+                desc: '세포 호흡을 통해 ATP 에너지를 생성하는 세포의 발전소.',
+                concept: '마이토콘드리아는 이중 막 구조(외막, 내막-크리스타)를 가지며, 유기물(포도당)과 산소를 이용하여 ATP(아데노신 삼인산)를 합성합니다.',
+                x: 300, y: 300, r: 60
+            },
+            nucleus: {
+                id: 'nucleus',
+                name: '핵 (Nucleus)',
+                color: '#a855f7',
+                icon: 'fa-dna',
+                unlocked: false,
+                desc: '유전 물질(DNA)을 포함하여 세포 전체 활동을 조절하는 중심 소기관.',
+                concept: '핵막은 2중막 구조이며 핵공을 통해 물질이 이동합니다. DNA 상보적 염기서열(A-T/U, G-C)에 따라 mRNA로 정보를 전사(Transcription)합니다.',
+                x: 800, y: 700, r: 90
+            },
+            ribosome: {
+                id: 'ribosome',
+                name: '라이보솜',
+                color: '#3b82f6',
+                icon: 'fa-cubes',
+                unlocked: false,
+                desc: 'mRNA의 유전 코돈 정보를 읽어 아미노산을 연결하여 단백질을 합성.',
+                concept: '막 구조가 없는 주머니 형태 소기관으로, mRNA의 3개 염기(코돈)를 읽어 대응하는 아미노산을 연결하는 번역(Translation)을 수행합니다.',
+                x: 1300, y: 350, r: 50
+            },
+            er: {
+                id: 'er',
+                name: '소포체 (ER)',
+                color: '#10b981',
+                icon: 'fa-network-wired',
+                unlocked: false,
+                desc: '거친소포체(단백질 수송) 및 매끄러운소포체(지질 합성 및 해독).',
+                concept: '단일막으로 연결된 가늘고 평평한 관 모양. 라이보솜이 붙은 거친소포체는 단백질을 이동시키고, 매끄러운소포체는 지질 합성 및 세포 독성 해독 작용을 합니다.',
+                x: 1200, y: 1000, r: 75
+            },
+            golgi: {
+                id: 'golgi',
+                name: '골지체',
+                color: '#f59e0b',
+                icon: 'fa-boxes-packing',
+                unlocked: false,
+                desc: '소포체에서 온 단백질을 가공, 포장하여 세포 안팎으로 수송.',
+                concept: '납작한 시스테나 소낭들이 쌓인 구조. 단백질에 탄수화물 등을 붙여 변형시키고 표적 위치(세포막, 라이소솜)로 전달할 수송 소포를 생성합니다.',
+                x: 600, y: 1200, r: 65
+            },
+            lysosome: {
+                id: 'lysosome',
+                name: '라이소솜',
+                color: '#ec4899',
+                icon: 'fa-vial-virus',
+                unlocked: false,
+                desc: '다양한 가수분해 효소를 포함하여 세포 내 이물질 및 노후 소기관 분해.',
+                concept: '단일막 소포로, 내부 pH가 약 4.8~5.0의 강한 산성 환경일 때 가수분해 효소가 활성화되어 이물질을 분해 및 해독합니다.',
+                x: 350, y: 850, r: 50
+            },
+            membrane: {
+                id: 'membrane',
+                name: '세포막 (Exit)',
+                color: '#06b6d4',
+                icon: 'fa-door-open',
+                unlocked: false,
+                desc: '인지질 이중층 구조로 세포 안팎을 구분하고 선택적 투과성을 조절.',
+                concept: '친수성 머리와 소수성 다리의 인지질 이중층 및 막단백질로 구성. 물질의 크기, 전하, 수용체 결합 반응에 따라 선택적으로 통과시킵니다.',
+                x: 800, y: 120, r: 70
+            }
+        };
+
+        /* Hiding Vesicles Positions */
+        const HIDING_SPOTS = [
+            { x: 500, y: 400, r: 35 },
+            { x: 1000, y: 450, r: 35 },
+            { x: 900, y: 950, r: 35 },
+            { x: 450, y: 1100, r: 35 },
+            { x: 1350, y: 750, r: 35 }
+        ];
+
+        /* ==========================================================================
+           3. GAME STATE & VARIABLES
+           ========================================================================== */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const minimapCanvas = document.getElementById('minimapCanvas');
+        const miniCtx = minimapCanvas.getContext('2d');
+
+        let worldWidth = 1600;
+        let worldHeight = 1500;
+
+        let player = {
+            x: 800,
+            y: 1350,
+            r: 16,
+            speed: 3.5,
+            hp: 100,
+            atp: 100,
+            flashlightOn: true,
+            isHiding: false,
+            facingAngle: -Math.PI/2
+        };
+
+        let keys = {};
+        let mousePos = { x: 0, y: 0 };
+        let activePuzzleId = null;
+        let isGameRunning = false;
+        let heartbeatTimer = 0;
+
+        /* Monsters */
+        let monsters = [
+            { id: 1, type: 'ROS', x: 400, y: 500, vx: 1.5, vy: 1.2, r: 18, title: '활성산소 (ROS)' },
+            { id: 2, type: 'Prion', x: 1100, y: 600, vx: -1.2, vy: 1.5, r: 22, title: '변성 단백질' },
+            { id: 3, type: 'ROS', x: 700, y: 1050, vx: 1.8, vy: -1.0, r: 18, title: '활성산소 (ROS)' }
+        ];
+
+        /* ==========================================================================
+           4. INITIALIZATION & HUD SETUP
+           ========================================================================== */
+        function initHUDTracker() {
+            const tracker = document.getElementById('organelleTracker');
+            tracker.innerHTML = '';
+            Object.values(ORGANELLES_DATA).forEach(org => {
+                const badge = document.createElement('div');
+                badge.id = `badge-${org.id}`;
+                badge.className = `flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold whitespace-nowrap bg-slate-900 border-slate-700 text-slate-400 opacity-60 transition`;
+                badge.innerHTML = `<i class="fa-solid ${org.icon}"></i> ${org.name}`;
+                tracker.appendChild(badge);
+            });
+        }
+
+        function updateHUD() {
+            document.getElementById('hpBar').style.width = `${Math.max(0, player.hp)}%`;
+            document.getElementById('hpText').innerText = `${Math.max(0, Math.round(player.hp))}%`;
+            document.getElementById('atpBar').style.width = `${Math.max(0, player.atp)}%`;
+            document.getElementById('atpText').innerText = `${Math.round(player.atp)}%`;
+
+            Object.values(ORGANELLES_DATA).forEach(org => {
+                const badge = document.getElementById(`badge-${org.id}`);
+                if (badge) {
+                    if (org.unlocked) {
+                        badge.className = `flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold whitespace-nowrap bg-emerald-950/80 border-emerald-500 text-emerald-300 opacity-100 shadow-sm`;
+                    } else {
+                        badge.className = `flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold whitespace-nowrap bg-slate-900 border-slate-800 text-slate-500 opacity-60`;
+                    }
+                }
+            });
+
+            // Hiding indicator
+            const hidingBox = document.getElementById('hidingIndicator');
+            if (player.isHiding) {
+                hidingBox.classList.remove('hidden');
+            } else {
+                hidingBox.classList.add('hidden');
+            }
+        }
+
+        function populateNotebook() {
+            const container = document.getElementById('notebookContent');
+            container.innerHTML = '';
+            Object.values(ORGANELLES_DATA).forEach(org => {
+                const card = document.createElement('div');
+                card.className = 'p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition';
+                card.innerHTML = `
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="p-2 rounded-lg bg-slate-900 text-emerald-400"><i class="fa-solid ${org.icon}"></i></span>
+                        <h3 class="font-bold text-slate-100 text-base">${org.name}</h3>
+                        <span class="ml-auto text-xs px-2 py-0.5 rounded border ${org.unlocked ? 'bg-emerald-950 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-700 text-slate-500'}">
+                            ${org.unlocked ? '복구 완료' : '미복구'}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-300 mb-2 font-medium">${org.desc}</p>
+                    <div class="text-xs text-slate-400 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80 leading-relaxed">
+                        <strong class="text-emerald-400 block mb-0.5">핵심 생명과학 원리:</strong> ${org.concept}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        /* ==========================================================================
+           5. CANVAS RESIZING & CAMERA
+           ========================================================================== */
+        function resizeCanvas() {
+            const parent = canvas.parentElement;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        /* ==========================================================================
+           6. CONTROLS & EVENT LISTENERS
+           ========================================================================== */
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'KeyF') toggleFlashlight();
+            if (e.code === 'KeyN' || e.code === 'Tab') {
+                e.preventDefault();
+                toggleNotebook();
+            }
+            if (e.code === 'KeyE') checkInteractions();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mousePos.x = e.clientX - rect.left;
+            mousePos.y = e.clientY - rect.top;
+        });
+
+        document.getElementById('btnStartGame').addEventListener('click', () => {
+            sound.init();
+            sound.playClick();
+            document.getElementById('titleModal').classList.add('hidden');
+            isGameRunning = true;
+        });
+
+        document.getElementById('btnNotebook').addEventListener('click', toggleNotebook);
+        document.getElementById('btnCloseNotebook').addEventListener('click', toggleNotebook);
+
+        document.getElementById('btnSound').addEventListener('click', () => {
+            sound.enabled = !sound.enabled;
+            const icon = document.getElementById('soundIcon');
+            icon.className = sound.enabled ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
+        });
+
+        document.getElementById('btnMobileFlashlight').addEventListener('click', toggleFlashlight);
+        document.getElementById('btnMobileInteract').addEventListener('click', checkInteractions);
+
+        document.getElementById('btnClosePuzzle').addEventListener('click', closePuzzle);
+        document.getElementById('btnCancelPuzzle').addEventListener('click', closePuzzle);
+        document.getElementById('btnVerifyPuzzle').addEventListener('click', verifyPuzzle);
+
+        document.getElementById('btnRestartGame').addEventListener('click', () => {
+            location.reload();
+        });
+        document.getElementById('btnPlayAgain').addEventListener('click', () => {
+            location.reload();
+        });
+
+        function toggleFlashlight() {
+            if (player.atp > 0) {
+                player.flashlightOn = !player.flashlightOn;
+                sound.playClick();
+            }
+        }
+
+        function toggleNotebook() {
+            sound.playClick();
+            const modal = document.getElementById('notebookModal');
+            if (modal.classList.contains('hidden')) {
+                populateNotebook();
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        /* ==========================================================================
+           7. INTERACTION & PROXIMITY CHECK
+           ========================================================================== */
+        function checkInteractions() {
+            if (activePuzzleId) return;
+
+            // Check Hiding spots
+            for (let spot of HIDING_SPOTS) {
+                const dist = Math.hypot(player.x - spot.x, player.y - spot.y);
+                if (dist < spot.r + player.r + 15) {
+                    player.isHiding = !player.isHiding;
+                    sound.playClick();
+                    return;
+                }
+            }
+
+            // Check Organelle Puzzles
+            for (let orgKey in ORGANELLES_DATA) {
+                const org = ORGANELLES_DATA[orgKey];
+                const dist = Math.hypot(player.x - org.x, player.y - org.y);
+                if (dist < org.r + player.r + 25) {
+                    if (org.id === 'membrane') {
+                        // Check if all other 6 organelles are unlocked
+                        const solvedCount = Object.values(ORGANELLES_DATA).filter(o => o.id !== 'membrane' && o.unlocked).length;
+                        if (solvedCount < 6) {
+                            showFeedbackText(`세포막 수용체 비활성화: 세포소기관 6개를 먼저 복구하세요! (${solvedCount}/6)`);
+                            sound.playError();
+                            return;
+                        }
+                    }
+                    openPuzzle(org.id);
+                    return;
+                }
+            }
+        }
+
+        function showFeedbackText(msg) {
+            const hint = document.getElementById('interactionHint');
+            const hintText = document.getElementById('hintText');
+            hintText.innerText = msg;
+            hint.classList.remove('hidden');
+            setTimeout(() => {
+                hint.classList.add('hidden');
+            }, 3000);
+        }
+
+        /* ==========================================================================
+           8. PUZZLE SYSTEM & HIGH SCHOOL BIOLOGY PUZZLES
+           ========================================================================== */
+        function openPuzzle(orgId) {
+            activePuzzleId = orgId;
+            sound.playClick();
+            const org = ORGANELLES_DATA[orgId];
+            const modal = document.getElementById('puzzleModal');
+            
+            document.getElementById('puzzleTitle').innerText = `${org.name} 복구 퍼즐`;
+            document.getElementById('puzzleSubtitle').innerText = org.desc;
+            document.getElementById('puzzleIcon').innerHTML = `<i class="fa-solid ${org.icon}"></i>`;
+            document.getElementById('puzzleConceptBox').innerHTML = `<strong class="text-emerald-400 font-bold block mb-1">탐구 핵심 개념:</strong> ${org.concept}`;
+            
+            const workspace = document.getElementById('puzzleWorkspace');
+            workspace.innerHTML = '';
+            document.getElementById('puzzleFeedback').classList.add('hidden');
+
+            renderPuzzleUI(orgId, workspace);
+            modal.classList.remove('hidden');
+        }
+
+        function closePuzzle() {
+            sound.playClick();
+            document.getElementById('puzzleModal').classList.add('hidden');
+            activePuzzleId = null;
+        }
+
+        function renderPuzzleUI(orgId, container) {
+            if (orgId === 'mitochondria') {
+                container.innerHTML = `
+                    <div class="w-full space-y-4 text-xs">
+                        <p class="text-slate-300 font-medium">마이토콘드리아의 세포 호흡 전반적인 반응식을 올바르게 완성하여 ATP를 합성하세요.</p>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-wrap items-center justify-center gap-2 font-orbitron text-sm">
+                            <span class="text-emerald-400">포도당 (C₆H₁₂O₆)</span> + 
+                            <select id="mito_o2" class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-cyan-300">
+                                <option value="1">1 O₂</option>
+                                <option value="6">6 O₂</option>
+                                <option value="12">12 O₂</option>
+                            </select>
+                            <span>➔</span>
+                            <select id="mito_co2" class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-300">
+                                <option value="3">3 CO₂</option>
+                                <option value="6">6 CO₂</option>
+                                <option value="12">12 CO₂</option>
+                            </select>
+                            + 6 H₂O + 
+                            <select id="mito_atp" class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-emerald-300">
+                                <option value="2">2 ATP</option>
+                                <option value="32">32~38 ATP</option>
+                                <option value="100">100 ATP</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+            } else if (orgId === 'nucleus') {
+                container.innerHTML = `
+                    <div class="w-full space-y-3 text-xs">
+                        <p class="text-slate-300">주어진 DNA 주형 가닥에 상보적으로 결합하는 <strong>mRNA 전사 염기서열</strong>을 완성하세요.</p>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 font-mono text-center tracking-widest text-sm">
+                            <div class="text-purple-400 font-bold mb-2">DNA 가닥: 3'- T - A - C - G - A - T - 5'</div>
+                            <div class="flex justify-center items-center gap-2">
+                                <span class="text-slate-400 font-sans">mRNA 가닥: 5'-</span>
+                                <input type="text" id="nuc_rna" placeholder="예: AUGCTA" class="bg-slate-950 border border-slate-700 rounded px-3 py-1 text-center font-mono uppercase text-emerald-400 w-44 tracking-widest" maxlength="6">
+                                <span class="text-slate-400 font-sans">- 3'</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (orgId === 'ribosome') {
+                container.innerHTML = `
+                    <div class="w-full space-y-3 text-xs">
+                        <p class="text-slate-300">라이보솜에서 mRNA의 개시 코돈 <strong>AUG</strong>가 지시하는 시작 아미노산을 선택하여 번역을 개시하세요.</p>
+                        <div class="bg-slate-900 p-4 rounded-lg border border-slate-800 flex flex-col items-center gap-3">
+                            <span class="text-cyan-400 font-mono text-base font-bold">mRNA 코돈: [ A - U - G ]</span>
+                            <select id="ribo_aa" class="bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-emerald-300 w-full max-w-xs">
+                                <option value="alanine">알라닌 (Alanine)</option>
+                                <option value="methionine">메티오닌 (Methionine - 개시)</option>
+                                <option value="lysine">라이신 (Lysine)</option>
+                                <option value="stop">종결 코돈 (Stop)</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+            } else if (orgId === 'er') {
+                container.innerHTML = `
+                    <div class="w-full space-y-3 text-xs">
+                        <p class="text-slate-300">소포체의 두 가지 부위별 기능을 올바르게 연결하세요.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-2">
+                                <span class="text-emerald-400 font-bold block">거친소포체 (Rough ER)</span>
+                                <select id="er_rough" class="bg-slate-950 border border-slate-700 rounded p-1.5 text-slate-200 w-full">
+                                    <option value="lipid">지질 합성 및 독소 해독</option>
+                                    <option value="protein">라이보솜 부착 & 단백질 이동/가공</option>
+                                </select>
+                            </div>
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-2">
+                                <span class="text-emerald-400 font-bold block">매끄러운소포체 (Smooth ER)</span>
+                                <select id="er_smooth" class="bg-slate-950 border border-slate-700 rounded p-1.5 text-slate-200 w-full">
+                                    <option value="protein">라이보솜 부착 & 단백질 이동/가공</option>
+                                    <option value="lipid">지질 합성 및 세포 독성 해독</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (orgId === 'golgi') {
+                container.innerHTML = `
+                    <div class="w-full space-y-3 text-xs">
+                        <p class="text-slate-300">골지체에서 가공된 수송 소포를 목적지에 따라 올바른 표적 단백질 소포 태그를 선택하세요.</p>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-300">가수분해 효소 소포 ➔</span>
+                                <select id="golgi_lyso" class="bg-slate-950 border border-slate-700 rounded p-1.5 text-pink-400">
+                                    <option value="membrane">세포막 분비</option>
+                                    <option value="lysosome">라이소솜 표적</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-300">세포외 분비 단백질 ➔</span>
+                                <select id="golgi_sec" class="bg-slate-950 border border-slate-700 rounded p-1.5 text-cyan-400">
+                                    <option value="lysosome">라이소솜 표적</option>
+                                    <option value="membrane">세포막 분비 소포</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (orgId === 'lysosome') {
+                container.innerHTML = `
+                    <div class="w-full space-y-3 text-xs">
+                        <p class="text-slate-300">라이소솜 내부의 가수분해 효소가 최대 활성을 나타내는 <strong>최적 산성 pH</strong>를 맞추세요.</p>
+                        <div class="bg-slate-900 p-4 rounded-lg border border-slate-800 flex flex-col items-center gap-3">
+                            <div class="flex items-center gap-4 w-full">
+                                <span class="text-slate-400">pH 1.0</span>
+                                <input type="range" id="lyso_ph" min="1.0" max="14.0" step="0.1" value="7.0" class="w-full accent-pink-500 cursor-pointer" oninput="document.getElementById('phVal').innerText = this.value">
+                                <span class="text-slate-400">pH 14.0</span>
+                            </div>
+                            <div class="text-base font-bold font-orbitron text-pink-400">
+                                설정 pH: <span id="phVal">7.0</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (orgId === 'membrane') {
+                container.innerHTML = `
+                    <div class="w-full space-y-3 text-xs">
+                        <p class="text-slate-300">세포막의 구조적 특징과 선택적 투과 통로 작동 원리를 완성하세요.</p>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span>세포막 기본 골격:</span>
+                                <select id="mem_struct" class="bg-slate-950 border border-slate-700 rounded p-1.5 text-cyan-300">
+                                    <option value="single">단백질 단일층</option>
+                                    <option value="bilayer">인지질 이중층</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span>이온 수송 방식:</span>
+                                <select id="mem_transport" class="bg-slate-950 border border-slate-700 rounded p-1.5 text-emerald-300">
+                                    <option value="channel">막단백질 이온 통로</option>
+                                    <option value="none">직접 통화 불가능</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function verifyPuzzle() {
+            const fb = document.getElementById('puzzleFeedback');
+            fb.classList.remove('hidden', 'bg-red-950/80', 'text-red-300', 'bg-emerald-950/80', 'text-emerald-300');
+
+            let isCorrect = false;
+            let msg = '';
+
+            if (activePuzzleId === 'mitochondria') {
+                const o2 = document.getElementById('mito_o2').value;
+                const co2 = document.getElementById('mito_co2').value;
+                const atp = document.getElementById('mito_atp').value;
+                if (o2 === '6' && co2 === '6' && atp === '32') {
+                    isCorrect = true;
+                    msg = '정답입니다! 마이토콘드리아가 작동하여 ATP 에너지가 풀충전되었습니다!';
+                    player.atp = 100;
+                } else {
+                    msg = '오답입니다! 세포 호흡 화학 반응식의 계수(포도당 1몰당 6O₂, 6CO₂, 32~38ATP)를 재확인하세요.';
+                }
+            } else if (activePuzzleId === 'nucleus') {
+                const val = document.getElementById('nuc_rna').value.trim().toUpperCase();
+                if (val === 'AUGCUA') {
+                    isCorrect = true;
+                    msg = '정답입니다! DNA 주형 가닥에 맞추어 정확한 mRNA 전사가 완료되었습니다!';
+                } else {
+                    msg = '오답입니다! DNA-RNA 상보적 염기결합 규칙(A-U, T-A, G-C, C-G)을 다시 확인하세요.';
+                }
+            } else if (activePuzzleId === 'ribosome') {
+                const aa = document.getElementById('ribo_aa').value;
+                if (aa === 'methionine') {
+                    isCorrect = true;
+                    msg = '정답입니다! AUG 개시 코돈에 맞는 메티오닌 아미노산 번역이 시작되었습니다!';
+                } else {
+                    msg = '오답입니다! AUG는 메티오닌을 지정하는 개시 코돈입니다.';
+                }
+            } else if (activePuzzleId === 'er') {
+                const rough = document.getElementById('er_rough').value;
+                const smooth = document.getElementById('er_smooth').value;
+                if (rough === 'protein' && smooth === 'lipid') {
+                    isCorrect = true;
+                    msg = '정답입니다! 거친소포체와 매끄러운소포체의 주요 기능 구분이 완료되었습니다!';
+                } else {
+                    msg = '오답입니다! 거친소포체는 라이보솜 부착 단백질 수송, 매끄러운소포체는 지질합성과 독소 해독을 담당합니다.';
+                }
+            } else if (activePuzzleId === 'golgi') {
+                const lyso = document.getElementById('golgi_lyso').value;
+                const sec = document.getElementById('golgi_sec').value;
+                if (lyso === 'lysosome' && sec === 'membrane') {
+                    isCorrect = true;
+                    msg = '정답입니다! 가공된 소포들이 각각 라이소솜과 세포막 표적으로 정밀 태깅되었습니다!';
+                } else {
+                    msg = '오답입니다! 소포 수송 표적 위치 태깅을 다시 확인하세요.';
+                }
+            } else if (activePuzzleId === 'lysosome') {
+                const ph = parseFloat(document.getElementById('lyso_ph').value);
+                if (ph >= 4.5 && ph <= 5.2) {
+                    isCorrect = true;
+                    msg = '정답입니다! 약 pH 4.8~5.0의 최적 산성 환경에서 가수분해 효소가 활성화되어 이물질을 녹입니다!';
+                } else {
+                    msg = '오답입니다! 라이소솜 가수분해 효소는 약 pH 4.5~5.0 사이의 산성 환경에서 최대 활성을 나타냅니다.';
+                }
+            } else if (activePuzzleId === 'membrane') {
+                const struct = document.getElementById('mem_struct').value;
+                const trans = document.getElementById('mem_transport').value;
+                if (struct === 'bilayer' && trans === 'channel') {
+                    isCorrect = true;
+                    msg = '정답입니다! 세포막 인지질 이중층과 막단백질 이온 통로가 개방되었습니다!';
+                } else {
+                    msg = '오답입니다! 세포막은 인지질 이중층 구조이며 선택적 투과는 막단백질 통로를 통해 일어납니다.';
+                }
+            }
+
+            if (isCorrect) {
+                sound.playSuccess();
+                fb.innerText = msg;
+                fb.classList.add('bg-emerald-950/80', 'text-emerald-300');
+                ORGANELLES_DATA[activePuzzleId].unlocked = true;
+                updateHUD();
+
+                setTimeout(() => {
+                    closePuzzle();
+                    if (activePuzzleId === 'membrane' || Object.values(ORGANELLES_DATA).every(o => o.unlocked)) {
+                        triggerVictory();
+                    }
+                }, 1500);
+            } else {
+                sound.playError();
+                fb.innerText = msg;
+                fb.classList.add('bg-red-950/80', 'text-red-300');
+            }
+        }
+
+        /* ==========================================================================
+           9. GAME LOOP & DRAWING ENGINE
+           ========================================================================== */
+        function updatePlayer() {
+            if (!isGameRunning) return;
+
+            let dx = 0;
+            let dy = 0;
+
+            if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+            if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+            if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+            if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.7071;
+                dy *= 0.7071;
+            }
+
+            if (!player.isHiding) {
+                player.x += dx * player.speed;
+                player.y += dy * player.speed;
+            }
+
+            // World Boundaries
+            player.x = Math.max( player.r + 20, Math.min(worldWidth - player.r - 20, player.x) );
+            player.y = Math.max( player.r + 20, Math.min(worldHeight - player.r - 20, player.y) );
+
+            // Update facing direction angle
+            const screenPX = canvas.width / 2;
+            const screenPY = canvas.height / 2;
+            player.facingAngle = Math.atan2(mousePos.y - screenPY, mousePos.x - screenPX);
+
+            // ATP Drain when flashlight is ON
+            if (player.flashlightOn) {
+                player.atp -= 0.03;
+                if (player.atp <= 0) {
+                    player.atp = 0;
+                    player.flashlightOn = false;
+                }
+            }
+
+            // Proximity interaction hint trigger
+            let nearInteractable = false;
+            for (let orgKey in ORGANELLES_DATA) {
+                const org = ORGANELLES_DATA[orgKey];
+                const dist = Math.hypot(player.x - org.x, player.y - org.y);
+                if (dist < org.r + player.r + 25) {
+                    nearInteractable = true;
+                    showFeedbackText(`[E] 누름: ${org.name} 복구 퍼즐 열기`);
+                    break;
+                }
+            }
+            if (!nearInteractable) {
+                for (let spot of HIDING_SPOTS) {
+                    const dist = Math.hypot(player.x - spot.x, player.y - spot.y);
+                    if (dist < spot.r + player.r + 15) {
+                        nearInteractable = true;
+                        showFeedbackText(`[E] 누름: ${player.isHiding ? '소포에서 나오기' : '수송소포 내부에 은폐'}`);
+                        break;
+                    }
+                }
+            }
+            if (!nearInteractable) {
+                document.getElementById('interactionHint').classList.add('hidden');
+            }
+        }
+
+        function updateMonsters() {
+            if (!isGameRunning) return;
+
+            monsters.forEach(m => {
+                m.x += m.vx;
+                m.y += m.vy;
+
+                if (m.x < 100 || m.x > worldWidth - 100) m.vx *= -1;
+                if (m.y < 100 || m.y > worldHeight - 100) m.vy *= -1;
+
+                // Detect player if not hiding
+                if (!player.isHiding) {
+                    const dist = Math.hypot(player.x - m.x, player.y - m.y);
+                    
+                    // Sound heartbeat
+                    if (dist < 250) {
+                        heartbeatTimer++;
+                        if (heartbeatTimer > 40) {
+                            sound.playHeartbeat();
+                            heartbeatTimer = 0;
+                        }
+                    }
+
+                    if (dist < m.r + player.r) {
+                        // Monster collision!
+                        player.hp -= 15;
+                        sound.playJumpscare();
+                        triggerJumpscareFX();
+                        // Knockback
+                        m.x += m.vx * -20;
+                        m.y += m.vy * -20;
+
+                        if (player.hp <= 0) {
+                            triggerGameOver();
+                        }
+                    }
+                }
+            });
+        }
+
+        function triggerJumpscareFX() {
+            const overlay = document.getElementById('jumpscareOverlay');
+            const glitch = document.getElementById('glitchOverlay');
+            overlay.classList.remove('hidden');
+            glitch.style.display = 'block';
+
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                glitch.style.display = 'none';
+            }, 600);
+        }
+
+        function triggerGameOver() {
+            isGameRunning = false;
+            document.getElementById('gameOverModal').classList.remove('hidden');
+        }
+
+        function triggerVictory() {
+            isGameRunning = false;
+            document.getElementById('victoryModal').classList.remove('hidden');
+        }
+
+        /* ==========================================================================
+           10. RENDER PIPELINE
+           ========================================================================== */
+        function drawWorld() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Camera follow player
+            const camX = canvas.width / 2 - player.x;
+            const camY = canvas.height / 2 - player.y;
+
+            ctx.save();
+            ctx.translate(camX, camY);
+
+            // Cell Cytoplasm & Membrane Outer Boundary
+            ctx.fillStyle = '#060a12';
+            ctx.fillRect(0, 0, worldWidth, worldHeight);
+
+            // Double Phospholipid Membrane Boundary Ring
+            ctx.lineWidth = 14;
+            ctx.strokeStyle = '#06b6d4';
+            ctx.strokeRect(10, 10, worldWidth - 20, worldHeight - 20);
+
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#22d3ee';
+            ctx.strokeRect(20, 20, worldWidth - 40, worldHeight - 40);
+
+            // Cytoskeleton Microtubule Filaments (Background detail)
+            ctx.strokeStyle = 'rgba(30, 58, 138, 0.25)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i < worldWidth; i += 120) {
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + 300, worldHeight);
+            }
+            ctx.stroke();
+
+            // Draw Hiding Vesicles
+            HIDING_SPOTS.forEach(spot => {
+                ctx.beginPath();
+                ctx.arc(spot.x, spot.y, spot.r, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(99, 102, 241, 0.15)';
+                ctx.fill();
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = '#818cf8';
+                ctx.font = '10px Noto Sans KR';
+                ctx.textAlign = 'center';
+                ctx.fillText('수송소포 [은폐]', spot.x, spot.y + 4);
+            });
+
+            // Draw Organelles
+            Object.values(ORGANELLES_DATA).forEach(org => {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(org.x, org.y, org.r, 0, Math.PI * 2);
+
+                if (org.unlocked) {
+                    ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
+                    ctx.strokeStyle = '#22c55e';
+                } else {
+                    ctx.fillStyle = org.color + '22';
+                    ctx.strokeStyle = org.color;
+                }
+                ctx.lineWidth = 3;
+                ctx.fill();
+                ctx.stroke();
+
+                // Inner Detail Folds / Cristae / Chromatin graphics
+                if (org.id === 'mitochondria') {
+                    // Cristae folds
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    for (let i = -org.r + 15; i < org.r - 15; i += 15) {
+                        ctx.moveTo(org.x + i, org.y - 15);
+                        ctx.lineTo(org.x + i, org.y + 15);
+                    }
+                    ctx.stroke();
+                } else if (org.id === 'nucleus') {
+                    // Chromatin threads
+                    ctx.strokeStyle = '#c084fc';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(org.x, org.y, org.r * 0.4, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // Organelle Label Text
+                ctx.fillStyle = org.unlocked ? '#4ade80' : '#f8fafc';
+                ctx.font = 'bold 12px Noto Sans KR';
+                ctx.textAlign = 'center';
+                ctx.fillText(org.name, org.x, org.y + 4);
+
+                ctx.restore();
+            });
+
+            // Draw Monsters
+            monsters.forEach(m => {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+                ctx.fillStyle = m.type === 'ROS' ? 'rgba(239, 68, 68, 0.8)' : 'rgba(168, 85, 247, 0.8)';
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Spikes
+                ctx.strokeStyle = m.type === 'ROS' ? '#f87171' : '#c084fc';
+                for (let i = 0; i < 8; i++) {
+                    const ang = (Math.PI / 4) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(m.x + Math.cos(ang) * m.r, m.y + Math.sin(ang) * m.r);
+                    ctx.lineTo(m.x + Math.cos(ang) * (m.r + 8), m.y + Math.sin(ang) * (m.r + 8));
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = '#fca5a5';
+                ctx.font = '10px Orbitron';
+                ctx.textAlign = 'center';
+                ctx.fillText(m.title, m.x, m.y - m.r - 4);
+                ctx.restore();
+            });
+
+            // Draw Player
+            if (!player.isHiding) {
+                ctx.save();
+                ctx.translate(player.x, player.y);
+                ctx.rotate(player.facingAngle);
+
+                // Body
+                ctx.beginPath();
+                ctx.arc(0, 0, player.r, 0, Math.PI * 2);
+                ctx.fillStyle = '#10b981';
+                ctx.fill();
+                ctx.strokeStyle = '#6ee7b7';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Pointer direction nose
+                ctx.beginPath();
+                ctx.moveTo(player.r, 0);
+                ctx.lineTo(player.r + 8, -4);
+                ctx.lineTo(player.r + 8, 4);
+                ctx.closePath();
+                ctx.fillStyle = '#34d399';
+                ctx.fill();
+
+                ctx.restore();
+            }
+
+            ctx.restore(); // Restore camera translation
+
+            // Fog of War Darkness & Flashlight Cone
+            drawLighting(camX, camY);
+
+            // Render Minimap
+            drawMinimap();
+        }
+
+        function drawLighting(camX, camY) {
+            const screenPX = player.x + camX;
+            const screenPY = player.y + camY;
+
+            const fogCanvas = document.createElement('canvas');
+            fogCanvas.width = canvas.width;
+            fogCanvas.height = canvas.height;
+            const fogCtx = fogCanvas.getContext('2d');
+
+            // Fill complete darkness
+            fogCtx.fillStyle = 'rgba(3, 7, 18, 0.92)';
+            fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+
+            fogCtx.globalCompositeOperation = 'destination-out';
+
+            // Player ambient light circle
+            const ambientGrad = fogCtx.createRadialGradient(screenPX, screenPY, 10, screenPX, screenPY, 70);
+            ambientGrad.addColorStop(0, 'rgba(0,0,0,1)');
+            ambientGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            fogCtx.fillStyle = ambientGrad;
+            fogCtx.beginPath();
+            fogCtx.arc(screenPX, screenPY, 70, 0, Math.PI * 2);
+            fogCtx.fill();
+
+            // Flashlight cone
+            if (player.flashlightOn && player.atp > 0 && !player.isHiding) {
+                fogCtx.save();
+                fogCtx.translate(screenPX, screenPY);
+                fogCtx.rotate(player.facingAngle);
+
+                fogCtx.beginPath();
+                fogCtx.moveTo(0, 0);
+                fogCtx.arc(0, 0, 320, -Math.PI / 5, Math.PI / 5);
+                fogCtx.closePath();
+
+                const flashGrad = fogCtx.createRadialGradient(0, 0, 20, 0, 0, 320);
+                flashGrad.addColorStop(0, 'rgba(0,0,0,1)');
+                flashGrad.addColorStop(0.8, 'rgba(0,0,0,0.8)');
+                flashGrad.addColorStop(1, 'rgba(0,0,0,0)');
+
+                fogCtx.fillStyle = flashGrad;
+                fogCtx.fill();
+                fogCtx.restore();
+            }
+
+            ctx.drawImage(fogCanvas, 0, 0);
+        }
+
+        function drawMinimap() {
+            miniCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+            const scaleX = minimapCanvas.width / worldWidth;
+            const scaleY = minimapCanvas.height / worldHeight;
+
+            // Organelles on map
+            Object.values(ORGANELLES_DATA).forEach(org => {
+                miniCtx.fillStyle = org.unlocked ? '#22c55e' : org.color;
+                miniCtx.beginPath();
+                miniCtx.arc(org.x * scaleX, org.y * scaleY, 4, 0, Math.PI * 2);
+                miniCtx.fill();
+            });
+
+            // Player position
+            miniCtx.fillStyle = '#38bdf8';
+            miniCtx.beginPath();
+            miniCtx.arc(player.x * scaleX, player.y * scaleY, 3, 0, Math.PI * 2);
+            miniCtx.fill();
+        }
+
+        /* Main Game Loop */
+        function gameLoop() {
+            updatePlayer();
+            updateMonsters();
+            drawWorld();
+            updateHUD();
+            requestAnimationFrame(gameLoop);
+        }
+
+        /* Window Load Entry Point */
+        window.onload = function() {
+            resizeCanvas();
+            initHUDTracker();
+            populateNotebook();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
